@@ -1,64 +1,21 @@
 """
-Capterra scraper using Playwright browser automation
+Capterra scraper using direct URLs
 """
 import asyncio
 from typing import List, Dict
-from playwright.async_api import async_playwright, Page
+from playwright.async_api import async_playwright
 import re
 
 
 class CapterraScraper:
-    """Scrapes reviews from Capterra using browser automation"""
+    """Scrapes reviews from Capterra using direct URLs"""
 
-    BASE_URL = "https://www.capterra.com"
-
-    async def search_company(self, page: Page, company_name: str) -> str:
-        """Search for a company on Capterra and return product URL"""
-        print(f"  🔍 Searching for {company_name} on Capterra...")
-
-        # Try search
-        search_url = f"{self.BASE_URL}/search"
-        try:
-            await page.goto(search_url, wait_until="domcontentloaded")
-            await page.fill('input[name="q"]', company_name)
-            await page.press('input[name="q"]', "Enter")
-            await page.wait_for_load_state("networkidle", timeout=10000)
-
-            # Look for first product result
-            first_result = await page.query_selector('a.d-flex.flex-column')
-            if first_result:
-                href = await first_result.get_attribute('href')
-                if href and href.startswith('/p/'):
-                    product_url = f"{self.BASE_URL}{href}"
-                    print(f"  ✅ Found product: {product_url}")
-                    return product_url
-        except Exception as e:
-            print(f"  ⚠️  Search method failed: {e}")
-
-        # Fallback: Try direct URL construction
-        slug = company_name.lower().replace(" ", "-").replace(".", "")
-        potential_urls = [
-            f"{self.BASE_URL}/software/{slug}",
-            f"{self.BASE_URL}/p/{slug}",
-        ]
-
-        for url in potential_urls:
-            try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=10000)
-                # Check if we're on a valid product page
-                title = await page.query_selector('h1')
-                if title:
-                    print(f"  ✅ Found via direct URL: {url}")
-                    return url
-            except:
-                continue
-
-        print(f"  ❌ Could not find {company_name} on Capterra")
-        return None
-
-    async def scrape_reviews(self, company_name: str, max_pages: int = 20) -> List[Dict]:
-        """Scrape reviews for a company"""
+    async def scrape_reviews(self, company_name: str, url: str, max_pages: int = 20) -> List[Dict]:
+        """Scrape reviews for a company from direct URL"""
         all_reviews = []
+
+        print(f"\n🏢 Scraping {company_name} from Capterra...")
+        print(f"  🔗 URL: {url}")
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -70,16 +27,15 @@ class CapterraScraper:
             )
             page = await context.new_page()
 
-            # Find company
-            product_url = await self.search_company(page, company_name)
-            if not product_url:
+            # Navigate to the URL
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            except Exception as e:
+                print(f"  ❌ Failed to load page: {e}")
                 await browser.close()
                 return []
 
-            # Navigate to reviews section
-            await page.goto(product_url, wait_until="domcontentloaded")
-
-            # Try to click on "Reviews" tab
+            # Try to click on "Reviews" tab if it exists
             try:
                 reviews_tab = await page.query_selector('a[href*="#reviews"], button:has-text("Reviews")')
                 if reviews_tab:
@@ -146,7 +102,7 @@ class CapterraScraper:
                                 "author": author.strip(),
                                 "date": date,
                                 "verified": True,
-                                "url": product_url
+                                "url": url
                             })
 
                     except Exception as e:
@@ -186,22 +142,15 @@ class CapterraScraper:
         return unique_reviews
 
 
-async def scrape_companies(company_names: List[str]) -> List[Dict]:
-    """Scrape reviews for multiple companies"""
-    scraper = CapterraScraper()
-    all_reviews = []
-
-    for company_name in company_names:
-        print(f"\n🏢 Scraping {company_name} from Capterra...")
-        reviews = await scraper.scrape_reviews(company_name)
-        all_reviews.extend(reviews)
-        await asyncio.sleep(3)  # Delay between companies
-
-    return all_reviews
-
-
 if __name__ == "__main__":
-    # Test with a single company
-    companies = ["Wise"]
-    reviews = asyncio.run(scrape_companies(companies))
-    print(f"\n✅ Total reviews: {len(reviews)}")
+    # Test with a single URL
+    async def test():
+        scraper = CapterraScraper()
+        reviews = await scraper.scrape_reviews(
+            "Wise",
+            "https://www.capterra.co.uk/software/1016836/wise",
+            max_pages=1
+        )
+        print(f"\n✅ Total reviews: {len(reviews)}")
+
+    asyncio.run(test())

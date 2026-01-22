@@ -1,65 +1,21 @@
 """
-G2 scraper using Playwright browser automation
+G2 scraper using direct URLs
 """
 import asyncio
 from typing import List, Dict
-from playwright.async_api import async_playwright, Page
+from playwright.async_api import async_playwright
 import re
 
 
 class G2Scraper:
-    """Scrapes reviews from G2 using browser automation"""
+    """Scrapes reviews from G2 using direct URLs"""
 
-    BASE_URL = "https://www.g2.com"
-
-    async def search_company(self, page: Page, company_name: str) -> str:
-        """Search for a company on G2 and return product URL"""
-        print(f"  🔍 Searching for {company_name} on G2...")
-
-        search_url = f"{self.BASE_URL}/search"
-        await page.goto(search_url, wait_until="domcontentloaded")
-
-        # Type in search box
-        try:
-            await page.fill('input[name="query"]', company_name)
-            await page.press('input[name="query"]', "Enter")
-            await page.wait_for_load_state("networkidle")
-
-            # Look for first product result
-            first_result = await page.query_selector('a.product-listing__product-name')
-            if first_result:
-                href = await first_result.get_attribute('href')
-                product_url = f"{self.BASE_URL}{href}"
-                print(f"  ✅ Found product: {product_url}")
-                return product_url
-        except Exception as e:
-            print(f"  ⚠️  Search method 1 failed: {e}")
-
-        # Fallback: Try direct URL construction
-        slug = company_name.lower().replace(" ", "-").replace(".", "")
-        potential_urls = [
-            f"{self.BASE_URL}/products/{slug}/reviews",
-            f"{self.BASE_URL}/products/{slug}-business/reviews",
-            f"{self.BASE_URL}/products/{slug}-for-business/reviews",
-        ]
-
-        for url in potential_urls:
-            try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=10000)
-                # Check if we're on a valid product page
-                title = await page.query_selector('h1')
-                if title:
-                    print(f"  ✅ Found via direct URL: {url}")
-                    return url
-            except:
-                continue
-
-        print(f"  ❌ Could not find {company_name} on G2")
-        return None
-
-    async def scrape_reviews(self, company_name: str, max_reviews: int = 200) -> List[Dict]:
-        """Scrape reviews for a company"""
+    async def scrape_reviews(self, company_name: str, url: str, max_reviews: int = 200) -> List[Dict]:
+        """Scrape reviews for a company from direct URL"""
         all_reviews = []
+
+        print(f"\n🏢 Scraping {company_name} from G2...")
+        print(f"  🔗 URL: {url}")
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -71,15 +27,13 @@ class G2Scraper:
             )
             page = await context.new_page()
 
-            # Find company
-            product_url = await self.search_company(page, company_name)
-            if not product_url:
+            # Navigate to the URL
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            except Exception as e:
+                print(f"  ❌ Failed to load page: {e}")
                 await browser.close()
                 return []
-
-            # Navigate to reviews page
-            reviews_url = product_url if "/reviews" in product_url else f"{product_url}/reviews"
-            await page.goto(reviews_url, wait_until="domcontentloaded")
 
             print(f"  📄 Loading reviews...")
 
@@ -145,14 +99,13 @@ class G2Scraper:
                         "author": author.strip(),
                         "date": date,
                         "verified": True,  # G2 reviews are generally verified
-                        "url": reviews_url
+                        "url": url
                     })
 
                     if (idx + 1) % 10 == 0:
                         print(f"  📝 Extracted {idx + 1} reviews...", end="\r")
 
                 except Exception as e:
-                    print(f"\n  ⚠️  Error extracting review {idx}: {e}")
                     continue
 
             await browser.close()
@@ -161,22 +114,15 @@ class G2Scraper:
         return all_reviews
 
 
-async def scrape_companies(company_names: List[str]) -> List[Dict]:
-    """Scrape reviews for multiple companies"""
-    scraper = G2Scraper()
-    all_reviews = []
-
-    for company_name in company_names:
-        print(f"\n🏢 Scraping {company_name} from G2...")
-        reviews = await scraper.scrape_reviews(company_name)
-        all_reviews.extend(reviews)
-        await asyncio.sleep(3)  # Delay between companies
-
-    return all_reviews
-
-
 if __name__ == "__main__":
-    # Test with a single company
-    companies = ["Wise"]
-    reviews = asyncio.run(scrape_companies(companies))
-    print(f"\n✅ Total reviews: {len(reviews)}")
+    # Test with a single URL
+    async def test():
+        scraper = G2Scraper()
+        reviews = await scraper.scrape_reviews(
+            "Wise",
+            "https://www.g2.com/products/wise-business/reviews",
+            max_reviews=20
+        )
+        print(f"\n✅ Total reviews: {len(reviews)}")
+
+    asyncio.run(test())

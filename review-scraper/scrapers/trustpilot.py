@@ -1,67 +1,21 @@
 """
-Trustpilot scraper using Playwright browser automation
+Trustpilot scraper using direct URLs
 """
 import asyncio
 from typing import List, Dict
-from playwright.async_api import async_playwright, Page
+from playwright.async_api import async_playwright
 import re
 
 
 class TrustpilotScraper:
-    """Scrapes reviews from Trustpilot using browser automation"""
+    """Scrapes reviews from Trustpilot using direct URLs"""
 
-    BASE_URL = "https://www.trustpilot.com"
-
-    async def search_company(self, page: Page, company_name: str) -> str:
-        """Search for a company on Trustpilot and return review URL"""
-        print(f"  🔍 Searching for {company_name} on Trustpilot...")
-
-        # Try multiple URL variations
-        slug_variations = [
-            company_name.lower().replace(" ", "-").replace(".", ""),
-            company_name.lower().replace(" ", "").replace(".", ""),
-            f"{company_name.lower().replace(' ', '')}.com",
-            f"www.{company_name.lower().replace(' ', '')}.com",
-            company_name.lower().replace(" ", "-"),
-        ]
-
-        for slug in slug_variations:
-            url = f"{self.BASE_URL}/review/{slug}"
-            try:
-                response = await page.goto(url, wait_until="domcontentloaded", timeout=10000)
-                if response and response.status == 200:
-                    # Check if we're on a valid company page
-                    title = await page.query_selector('h1')
-                    if title and "Page not found" not in await page.content():
-                        print(f"  ✅ Found: {url}")
-                        return url
-            except:
-                continue
-
-        # Fallback: Use search
-        try:
-            await page.goto(f"{self.BASE_URL}/search", wait_until="domcontentloaded")
-            await page.fill('input[name="query"]', company_name)
-            await page.press('input[name="query"]', "Enter")
-            await page.wait_for_load_state("networkidle", timeout=10000)
-
-            # Click first result
-            first_result = await page.query_selector('a[href*="/review/"]')
-            if first_result:
-                href = await first_result.get_attribute('href')
-                url = f"{self.BASE_URL}{href}" if href.startswith('/') else href
-                await page.goto(url, wait_until="domcontentloaded")
-                print(f"  ✅ Found via search: {url}")
-                return url
-        except Exception as e:
-            print(f"  ⚠️  Search failed: {e}")
-
-        print(f"  ❌ Could not find {company_name} on Trustpilot")
-        return None
-
-    async def scrape_reviews(self, company_name: str, max_pages: int = 50) -> List[Dict]:
-        """Scrape reviews for a company"""
+    async def scrape_reviews(self, company_name: str, url: str, max_pages: int = 50) -> List[Dict]:
+        """Scrape reviews for a company from direct URL"""
         all_reviews = []
+
+        print(f"\n🏢 Scraping {company_name} from Trustpilot...")
+        print(f"  🔗 URL: {url}")
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -73,13 +27,14 @@ class TrustpilotScraper:
             )
             page = await context.new_page()
 
-            # Find company
-            company_url = await self.search_company(page, company_name)
-            if not company_url:
+            # Navigate to the URL
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            except Exception as e:
+                print(f"  ❌ Failed to load page: {e}")
                 await browser.close()
                 return []
 
-            # Already on the reviews page
             page_num = 1
 
             while page_num <= max_pages:
@@ -146,7 +101,7 @@ class TrustpilotScraper:
                             "author": author.strip(),
                             "date": date,
                             "verified": verified,
-                            "url": company_url
+                            "url": url
                         })
 
                     except Exception as e:
@@ -177,26 +132,19 @@ class TrustpilotScraper:
 
             await browser.close()
 
-        print(f"\n  ✅ Total reviews scraped: {len(all_reviews)}")
+        print(f"  ✅ Total reviews scraped: {len(all_reviews)}")
         return all_reviews
 
 
-async def scrape_companies(company_names: List[str]) -> List[Dict]:
-    """Scrape reviews for multiple companies"""
-    scraper = TrustpilotScraper()
-    all_reviews = []
-
-    for company_name in company_names:
-        print(f"\n🏢 Scraping {company_name}...")
-        reviews = await scraper.scrape_reviews(company_name)
-        all_reviews.extend(reviews)
-        await asyncio.sleep(2)  # Delay between companies
-
-    return all_reviews
-
-
 if __name__ == "__main__":
-    # Test with a single company
-    companies = ["Wise"]
-    reviews = asyncio.run(scrape_companies(companies))
-    print(f"\n✅ Total reviews: {len(reviews)}")
+    # Test with a single URL
+    async def test():
+        scraper = TrustpilotScraper()
+        reviews = await scraper.scrape_reviews(
+            "Wise",
+            "https://uk.trustpilot.com/review/wise.com",
+            max_pages=2
+        )
+        print(f"\n✅ Total reviews: {len(reviews)}")
+
+    asyncio.run(test())

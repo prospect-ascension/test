@@ -1,0 +1,38 @@
+# Company URLs Configuration
+# Direct links to review pages - no searching needed!
+
+companies:
+  - name: Airwallex
+    trustpilot: https://uk.trustpilot.com/review/airwallex.com
+    g2: https://www.g2.com/products/airwallex/reviews
+    capterra: https://www.capterra.co.uk/software/218771/airwallex
+
+  - name: Wise
+    trustpilot: https://uk.trustpilot.com/review/wise.com
+    g2: https://www.g2.com/products/wise-business/reviews
+    capterra: https://www.capterra.co.uk/software/1016836/wise
+
+  - name: Revolut
+    trustpilot: https://uk.trustpilot.com/review/www.revolut.com
+    g2: https://www.g2.com/products/revolut/reviews
+    capterra: https://www.capterra.co.uk/software/1005074/revolut-for-business
+
+  - name: WorldFirst
+    trustpilot: https://uk.trustpilot.com/review/www.worldfirst.com
+    g2: https://www.g2.com/products/world-first/reviews
+    capterra: null
+
+  - name: Payoneer
+    trustpilot: https://uk.trustpilot.com/review/www.payoneer.com
+    g2: https://www.g2.com/products/payoneer/reviews
+    capterra: https://www.capterra.co.uk/software/187086/payoneer
+
+  - name: OFX
+    trustpilot: https://uk.trustpilot.com/review/ofx.com
+    g2: https://www.g2.com/products/ofx/reviews
+    capterra: null
+
+  - name: Currencycloud
+    trustpilot: https://uk.trustpilot.com/review/www.currencycloud.com
+    g2: https://www.g2.com/products/currencycloud/reviews
+    capterra: https://www.capterra.co.uk/software/173495/currencycloud
